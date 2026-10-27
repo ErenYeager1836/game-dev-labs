@@ -1,4 +1,5 @@
 #include "pathfinding/astar.hpp"
+#include "pathfinding/flow_field.hpp"
 #include "pathfinding/grid_map.hpp"
 #include "pathfinding/procgen.hpp"
 
@@ -160,6 +161,44 @@ void test_cellular_automata_bounds_and_clusters() {
     std::cout << "    PASSED\n";
 }
 
+void test_flow_field_navigation() {
+    std::cout << "[+] Running test_flow_field_navigation...\n";
+    GridMap map(20, 20, TileType::Floor);
+
+    // Add a wall barrier with a narrow passage
+    for (int y = 0; y < 15; ++y) {
+        map.set(10, y, TileType::Wall);
+    }
+    // Passage is at y = 15..19
+
+    Point target(18, 5);
+    FlowField flow(map, target);
+
+    assert(flow.target() == target);
+    assert(flow.get_cost(target) == 0.0f);
+
+    // Wall must have infinite cost and zero flow
+    assert(!flow.is_reachable(Point(10, 5)));
+    FlowVector wall_flow = flow.get_flow(Point(10, 5));
+    assert(wall_flow.x == 0.0f && wall_flow.y == 0.0f);
+
+    // Target flow must be zero
+    FlowVector target_flow = flow.get_flow(target);
+    assert(target_flow.x == 0.0f && target_flow.y == 0.0f);
+
+    // Point on left side of the barrier must route through passage or toward passage
+    Point start(2, 5);
+    assert(flow.is_reachable(start));
+    assert(flow.get_cost(start) > 0.0f);
+
+    auto path = flow.trace_path(start, 500);
+    assert(!path.empty());
+    assert(path.front() == start);
+    assert(path.back() == target);
+
+    std::cout << "    PASSED\n";
+}
+
 int main() {
     std::cout << "=== Running pathfinding-procgen test suite ===\n";
 
@@ -170,7 +209,8 @@ int main() {
     test_astar_diagonal_movement();
     test_bsp_dungeon_connectivity();
     test_cellular_automata_bounds_and_clusters();
+    test_flow_field_navigation();
 
-    std::cout << "=== All 7 pathfinding-procgen tests passed successfully! ===\n";
+    std::cout << "=== All 8 pathfinding-procgen tests passed successfully! ===\n";
     return 0;
 }

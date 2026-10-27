@@ -1,3 +1,4 @@
+#include "gameloop/behavior_tree.hpp"
 #include "gameloop/event_bus.hpp"
 #include "gameloop/state_machine.hpp"
 #include "gameloop/timestep.hpp"
@@ -153,6 +154,88 @@ void test_lerp_interpolation() {
     std::cout << "    PASSED\n";
 }
 
+class PauseMenuState : public State {
+public:
+    std::string name() const override { return "PauseMenu"; }
+    void on_enter(StateMachine&) override { entered = true; }
+    void on_exit(StateMachine&) override { exited = true; }
+    bool entered = false;
+    bool exited = false;
+};
+
+void test_state_machine_stack_push_pop() {
+    std::cout << "[+] Running test_state_machine_stack_push_pop...\n";
+    StateMachine fsm;
+
+    fsm.change_state(std::make_unique<WalkState>());
+    assert(fsm.current_state_name() == "Walk");
+    assert(fsm.stack_depth() == 1);
+
+    // Push pause menu overlay
+    fsm.push_state(std::make_unique<PauseMenuState>());
+    assert(fsm.current_state_name() == "PauseMenu");
+    assert(fsm.stack_depth() == 2);
+
+    // Pop pause menu, returning to Walk
+    fsm.pop_state();
+    assert(fsm.current_state_name() == "Walk");
+    assert(fsm.stack_depth() == 1);
+
+    std::cout << "    PASSED\n";
+}
+
+void test_behavior_tree_execution() {
+    std::cout << "[+] Running test_behavior_tree_execution...\n";
+    Blackboard bb;
+    bb.set_float("target_distance", 15.0f);
+    bb.set_string("current_action", "none");
+
+    // Behavior Tree Structure:
+    // Selector (Fallback)
+    //   -> Sequence:
+    //        -> Condition: target_distance <= 5.0f (In range)
+    //        -> Action: set current_action = "melee_attack"
+    //   -> Action: set current_action = "patrol"
+
+    auto combat_seq = std::make_shared<SequenceNode>();
+    combat_seq->add_child(std::make_shared<ConditionNode>([](Blackboard& b) {
+        return b.get_float("target_distance") <= 5.0f;
+    }));
+    combat_seq->add_child(std::make_shared<ActionNode>([](Blackboard& b) {
+        b.set_string("current_action", "melee_attack");
+        return NodeStatus::Success;
+    }));
+
+    auto patrol_action = std::make_shared<ActionNode>([](Blackboard& b) {
+        b.set_string("current_action", "patrol");
+        return NodeStatus::Success;
+    });
+
+    SelectorNode root;
+    root.add_child(combat_seq);
+    root.add_child(patrol_action);
+
+    // Tick 1: Target distance is 15.0f -> Condition fails, Sequence fails, Patrol executes
+    NodeStatus status1 = root.tick(bb);
+    assert(status1 == NodeStatus::Success);
+    assert(bb.get_string("current_action") == "patrol");
+
+    // Tick 2: Target distance is now 3.0f -> Condition succeeds, Combat sequence executes
+    bb.set_float("target_distance", 3.0f);
+    NodeStatus status2 = root.tick(bb);
+    assert(status2 == NodeStatus::Success);
+    assert(bb.get_string("current_action") == "melee_attack");
+
+    // Test Inverter decorator
+    auto cond = std::make_shared<ConditionNode>([](Blackboard& b) {
+        return b.get_float("target_distance") < 1.0f;
+    });
+    InverterNode inv(cond);
+    assert(inv.tick(bb) == NodeStatus::Success); // Condition was false, inverter turns it true
+
+    std::cout << "    PASSED\n";
+}
+
 int main() {
     std::cout << "=== Running game-loop-fsm test suite ===\n";
 
@@ -163,7 +246,9 @@ int main() {
     test_fsm_attack_animation_timer();
     test_event_bus_dispatching();
     test_lerp_interpolation();
+    test_state_machine_stack_push_pop();
+    test_behavior_tree_execution();
 
-    std::cout << "=== All 7 game-loop-fsm tests passed successfully! ===\n";
+    std::cout << "=== All 9 game-loop-fsm tests passed successfully! ===\n";
     return 0;
 }

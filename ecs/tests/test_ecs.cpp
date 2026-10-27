@@ -195,6 +195,45 @@ void test_high_volume_stress() {
     std::cout << "    PASSED\n";
 }
 
+void test_component_lifecycle_signals() {
+    std::cout << "[+] Running test_component_lifecycle_signals...\n";
+    Registry registry;
+
+    std::vector<std::pair<EntityID, int>> constructs;
+    std::vector<std::pair<EntityID, int>> destructions;
+
+    registry.on_construct<Health>([&](EntityID entity, Health& h) {
+        constructs.emplace_back(entity, h.current);
+    });
+
+    registry.on_destroy<Health>([&](EntityID entity, Health& h) {
+        destructions.emplace_back(entity, h.current);
+    });
+
+    EntityID e1 = registry.create();
+    EntityID e2 = registry.create();
+
+    registry.emplace<Health>(e1, 100, 100);
+    registry.emplace<Health>(e2, 50, 50);
+
+    assert(constructs.size() == 2);
+    assert(constructs[0].first == e1 && constructs[0].second == 100);
+    assert(constructs[1].first == e2 && constructs[1].second == 50);
+
+    // Remove component explicitly from e1
+    bool removed = registry.remove<Health>(e1);
+    assert(removed);
+    assert(destructions.size() == 1);
+    assert(destructions[0].first == e1 && destructions[0].second == 100);
+
+    // Destroy e2 entity, which purges all its components
+    registry.destroy(e2);
+    assert(destructions.size() == 2);
+    assert(destructions[1].first == e2 && destructions[1].second == 50);
+
+    std::cout << "    PASSED\n";
+}
+
 int main() {
     std::cout << "=== Running ecs test suite ===\n";
 
@@ -204,7 +243,8 @@ int main() {
     test_multi_component_view_filtering();
     test_system_movement_and_combat();
     test_high_volume_stress();
+    test_component_lifecycle_signals();
 
-    std::cout << "=== All 6 ecs tests passed successfully! ===\n";
+    std::cout << "=== All 7 ecs tests passed successfully! ===\n";
     return 0;
 }

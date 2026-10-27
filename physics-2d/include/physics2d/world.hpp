@@ -39,11 +39,13 @@ public:
     void step(float dt) {
         if (dt <= 0.0f) return;
 
-        // 1. Integrate forces and gravity into linear velocity
+        // 1. Integrate forces and gravity into linear and angular velocity
         for (auto& body : bodies_) {
             if (!body->is_static()) {
                 body->velocity += (gravity + body->force * body->inv_mass) * dt;
+                body->angular_velocity += body->torque * body->inv_inertia * dt;
                 body->force = {0.0f, 0.0f};
+                body->torque = 0.0f;
             }
         }
 
@@ -141,8 +143,14 @@ private:
         if (!a.is_static()) a.position -= correction * a.inv_mass;
         if (!b.is_static()) b.position += correction * b.inv_mass;
 
-        // 2. Normal Velocity & Elastic Impulse
-        Vec2 rv = b.velocity - a.velocity;
+        // 2. Relative Velocity at Contact Point with Rotation:
+        // v_pt = v + omega x r = (v.x - omega * r.y, v.y + omega * r.x)
+        Vec2 ra = m.contact_point - a.position;
+        Vec2 rb = m.contact_point - b.position;
+        Vec2 va_cp = a.velocity + Vec2(-a.angular_velocity * ra.y, a.angular_velocity * ra.x);
+        Vec2 vb_cp = b.velocity + Vec2(-b.angular_velocity * rb.y, b.angular_velocity * rb.x);
+        Vec2 rv = vb_cp - va_cp;
+
         float vel_along_normal = rv.dot(m.normal);
 
         // Do not resolve if velocities are already separating
@@ -150,31 +158,64 @@ private:
             return;
         }
 
+        float ra_cross_n = ra.cross(m.normal);
+        float rb_cross_n = rb.cross(m.normal);
+        float denom = a.inv_mass + b.inv_mass +
+                      (ra_cross_n * ra_cross_n) * a.inv_inertia +
+                      (rb_cross_n * rb_cross_n) * b.inv_inertia;
+
+        if (denom <= 0.0f) {
+            return;
+        }
+
         float e = std::min(a.restitution, b.restitution);
-        float j = -(1.0f + e) * vel_along_normal / total_inv_mass;
+        float j = -(1.0f + e) * vel_along_normal / denom;
         Vec2 normal_impulse = m.normal * j;
 
-        if (!a.is_static()) a.velocity -= normal_impulse * a.inv_mass;
-        if (!b.is_static()) b.velocity += normal_impulse * b.inv_mass;
+        if (!a.is_static()) {
+            a.velocity -= normal_impulse * a.inv_mass;
+            a.angular_velocity -= ra.cross(normal_impulse) * a.inv_inertia;
+        }
+        if (!b.is_static()) {
+            b.velocity += normal_impulse * b.inv_mass;
+            b.angular_velocity += rb.cross(normal_impulse) * b.inv_inertia;
+        }
 
-        // 3. Tangent Velocity & Friction Impulse
-        rv = b.velocity - a.velocity;
+        // 3. Tangent Velocity & Friction Impulse with Rotational Terms
+        va_cp = a.velocity + Vec2(-a.angular_velocity * ra.y, a.angular_velocity * ra.x);
+        vb_cp = b.velocity + Vec2(-b.angular_velocity * rb.y, b.angular_velocity * rb.x);
+        rv = vb_cp - va_cp;
+
         vel_along_normal = rv.dot(m.normal);
         Vec2 tangent = rv - m.normal * vel_along_normal;
         float tangent_len = tangent.length();
 
         if (tangent_len > 1e-5f) {
             tangent /= tangent_len;
-            float jt = -rv.dot(tangent) / total_inv_mass;
+            float ra_cross_t = ra.cross(tangent);
+            float rb_cross_t = rb.cross(tangent);
+            float denom_t = a.inv_mass + b.inv_mass +
+                            (ra_cross_t * ra_cross_t) * a.inv_inertia +
+                            (rb_cross_t * rb_cross_t) * b.inv_inertia;
 
-            // Coulomb's Law: clamp friction impulse by normal impulse * friction coefficient
-            float mu = std::sqrt(a.friction * b.friction);
-            float max_friction = std::abs(j) * mu;
-            jt = std::clamp(jt, -max_friction, max_friction);
+            if (denom_t > 0.0f) {
+                float jt = -rv.dot(tangent) / denom_t;
 
-            Vec2 friction_impulse = tangent * jt;
-            if (!a.is_static()) a.velocity -= friction_impulse * a.inv_mass;
-            if (!b.is_static()) b.velocity += friction_impulse * b.inv_mass;
+                // Coulomb's Law: clamp friction impulse by normal impulse * friction coefficient
+                float mu = std::sqrt(a.friction * b.friction);
+                float max_friction = std::abs(j) * mu;
+                jt = std::clamp(jt, -max_friction, max_friction);
+
+                Vec2 friction_impulse = tangent * jt;
+                if (!a.is_static()) {
+                    a.velocity -= friction_impulse * a.inv_mass;
+                    a.angular_velocity -= ra.cross(friction_impulse) * a.inv_inertia;
+                }
+                if (!b.is_static()) {
+                    b.velocity += friction_impulse * b.inv_mass;
+                    b.angular_velocity += rb.cross(friction_impulse) * b.inv_inertia;
+                }
+            }
         }
     }
 

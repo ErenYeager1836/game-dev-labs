@@ -4,6 +4,7 @@
 
 #include <cassert>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <stdexcept>
 #include <typeindex>
@@ -52,12 +53,25 @@ public:
         return dense_idx < dense_.size() && dense_to_entity_[dense_idx] == entity;
     }
 
+    using Callback = std::function<void(EntityID, T&)>;
+
+    void on_construct(Callback cb) {
+        on_construct_callbacks_.push_back(std::move(cb));
+    }
+
+    void on_destroy(Callback cb) {
+        on_destroy_callbacks_.push_back(std::move(cb));
+    }
+
     template <typename... Args>
     T& emplace(EntityID entity, Args&&... args) {
         if (has(entity)) {
             // Overwrite existing component
             size_t idx = sparse_[entity];
             dense_[idx] = T(std::forward<Args>(args)...);
+            for (auto& cb : on_construct_callbacks_) {
+                cb(entity, dense_[idx]);
+            }
             return dense_[idx];
         }
 
@@ -70,6 +84,10 @@ public:
         sparse_[entity] = new_dense_idx;
         dense_.emplace_back(std::forward<Args>(args)...);
         dense_to_entity_.push_back(entity);
+
+        for (auto& cb : on_construct_callbacks_) {
+            cb(entity, dense_.back());
+        }
 
         return dense_.back();
     }
@@ -90,6 +108,12 @@ public:
         }
 
         size_t index_to_remove = sparse_[entity];
+
+        // Notify destruction listeners before removing component
+        for (auto& cb : on_destroy_callbacks_) {
+            cb(entity, dense_[index_to_remove]);
+        }
+
         size_t last_index = dense_.size() - 1;
 
         // Swap with the last element to keep dense_ tightly packed with no fragmentation
@@ -128,6 +152,8 @@ private:
     std::vector<T> dense_;
     std::vector<EntityID> dense_to_entity_;
     std::vector<size_t> sparse_;
+    std::vector<Callback> on_construct_callbacks_;
+    std::vector<Callback> on_destroy_callbacks_;
 };
 
 } // namespace gamedev::ecs

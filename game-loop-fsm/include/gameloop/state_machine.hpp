@@ -21,13 +21,15 @@ public:
     virtual void on_enter(StateMachine& /*fsm*/) {}
     virtual void on_update(StateMachine& /*fsm*/, float /*dt*/) {}
     virtual void on_exit(StateMachine& /*fsm*/) {}
+    virtual void on_pause(StateMachine& /*fsm*/) {}
+    virtual void on_resume(StateMachine& /*fsm*/) {}
     virtual void handle_input(StateMachine& /*fsm*/, const std::string& /*input*/) {}
 
     virtual std::string name() const = 0;
 };
 
 /**
- * Finite State Machine orchestrator managing active state and transitions.
+ * Finite State Machine orchestrator managing active state, state stack, and transitions.
  */
 class StateMachine {
 public:
@@ -51,6 +53,42 @@ public:
         }
 
         current_state_->on_enter(*this);
+    }
+
+    /**
+     * Pushes current state onto the stack and transitions to a new overlay/substate (e.g. Pause, Inventory).
+     */
+    void push_state(std::unique_ptr<State> new_state) {
+        if (!new_state) return;
+
+        if (current_state_) {
+            current_state_->on_pause(*this);
+            state_stack_.push_back(std::move(current_state_));
+        }
+
+        current_state_ = std::move(new_state);
+        history_.push_back(current_state_->name());
+        current_state_->on_enter(*this);
+    }
+
+    /**
+     * Pops active substate off the stack and resumes the previous underlying state.
+     */
+    void pop_state() {
+        if (!current_state_) return;
+
+        current_state_->on_exit(*this);
+        current_state_.reset();
+
+        if (!state_stack_.empty()) {
+            current_state_ = std::move(state_stack_.back());
+            state_stack_.pop_back();
+            current_state_->on_resume(*this);
+        }
+    }
+
+    size_t stack_depth() const noexcept {
+        return (current_state_ ? 1 : 0) + state_stack_.size();
     }
 
     void update(float dt) {
@@ -88,6 +126,7 @@ public:
 
 private:
     std::unique_ptr<State> current_state_;
+    std::vector<std::unique_ptr<State>> state_stack_;
     EventBus* event_bus_ = nullptr;
     std::vector<std::string> history_;
 };

@@ -181,6 +181,38 @@ void test_static_body_infinite_mass_bounce() {
     std::cout << "    PASSED\n";
 }
 
+void test_rotational_dynamics_and_torque() {
+    std::cout << "[+] Running test_rotational_dynamics_and_torque...\n";
+    PhysicsWorld world({0.0f, 0.0f}); // Zero gravity
+
+    auto circle = std::make_shared<CircleShape>(1.0f);
+    RigidBody* body = world.create_body(circle, 2.0f, Vec2(0.0f, 0.0f));
+
+    // Moment of inertia for solid circle: 0.5 * m * r^2 = 0.5 * 2 * 1 = 1.0
+    assert(std::abs(body->inertia - 1.0f) < 1e-5f);
+    assert(std::abs(body->inv_inertia - 1.0f) < 1e-5f);
+
+    // Apply constant torque
+    body->apply_torque(10.0f);
+    world.step(0.1f);
+
+    // omega = torque * inv_inertia * dt = 10 * 1 * 0.1 = 1.0 rad/s
+    assert(std::abs(body->angular_velocity - 1.0f) < 1e-4f);
+    // rotation = omega * dt = 1.0 * 0.1 = 0.1 rad
+    assert(std::abs(body->rotation - 0.1f) < 1e-4f);
+
+    // Test off-center force application
+    // Applying force (0, 10) at point (2, 0) gives r = (2, 0), torque = r.cross(f) = 2 * 10 - 0 = 20
+    body->apply_force_at_point(Vec2(0.0f, 10.0f), Vec2(2.0f, 0.0f));
+    assert(std::abs(body->torque - 20.0f) < 1e-4f);
+
+    world.step(0.1f);
+    // Angular velocity increases by 20 * 1 * 0.1 = 2.0 -> total 3.0 rad/s
+    assert(std::abs(body->angular_velocity - 3.0f) < 1e-3f);
+
+    std::cout << "    PASSED\n";
+}
+
 int main() {
     std::cout << "=== Running physics-2d test suite ===\n";
 
@@ -191,7 +223,8 @@ int main() {
     test_circle_polygon_sat();
     test_momentum_conservation_elastic_collision();
     test_static_body_infinite_mass_bounce();
+    test_rotational_dynamics_and_torque();
 
-    std::cout << "=== All 7 physics-2d tests passed successfully! ===\n";
+    std::cout << "=== All 8 physics-2d tests passed successfully! ===\n";
     return 0;
 }

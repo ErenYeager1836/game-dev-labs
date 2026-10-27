@@ -146,6 +146,22 @@ public:
     }
 
     /**
+     * Registers a callback invoked whenever component T is constructed or added to an entity.
+     */
+    template <typename T>
+    void on_construct(std::function<void(EntityID, T&)> callback) {
+        get_or_create_pool<T>().on_construct(std::move(callback));
+    }
+
+    /**
+     * Registers a callback invoked whenever component T is removed from an entity.
+     */
+    template <typename T>
+    void on_destroy(std::function<void(EntityID, T&)> callback) {
+        get_or_create_pool<T>().on_destroy(std::move(callback));
+    }
+
+    /**
      * Retrieves the component pool for a given component type.
      */
     template <typename T>

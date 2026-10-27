@@ -193,7 +193,7 @@ timeline
 - [x] $O(1)$ amortized component addition, lookup, and deletion.
 - [x] Multi-component view filter queries.
 - [x] Entity ID recycling and lifecycle tracking.
-- [ ] **Component Event Signals**: Reactive callbacks (`on_add`, `on_remove`, `on_update`) for event-driven system triggers.
+- [x] **Component Event Signals**: Reactive callbacks (`on_construct`, `on_destroy`) for event-driven system triggers.
 - [ ] **Multi-Threaded System Dispatcher**: Task graph scheduler allowing independent systems (e.g., Movement and Audio) to run concurrently across worker threads.
 - [ ] **Component Reflection & Serialization**: Automated binary state saving and network synchronization.
 - [ ] **Archetype Chunk Backend**: Alternate chunk-based storage option for homogenous mass entity counts (>500k entities).
@@ -203,7 +203,7 @@ timeline
 - [x] Separating Axis Theorem (SAT) for convex polygons and circles.
 - [x] Impulse velocity solver with restitution and Coulomb friction.
 - [x] Anti-penetration slop projection.
-- [ ] **Rotational Dynamics & Moment of Inertia**: Coupling torque and angular velocity to contact points ($J_t \times r$).
+- [x] **Rotational Dynamics & Moment of Inertia**: Coupling torque, angular velocity, and moment of inertia to contact points ($J_t \times r$, $r \times F$, angular integration).
 - [ ] **Spatial Hash / Dynamic BVH Tree**: Replacing $O(N^2)$ pairwise checks with a dynamic AABB bounding volume hierarchy.
 - [ ] **Continuous Collision Detection (CCD)**: Raycast / swept circle continuous time-of-impact (TOI) solver to eliminate tunneling.
 - [ ] **Constraint Solvers**: Distance joints, revolute pin joints, and spring dampers.
@@ -213,19 +213,19 @@ timeline
 - [x] A* search algorithm with Manhattan and Octile heuristics.
 - [x] BSP procedural dungeon generator with guaranteed connectivity.
 - [x] Cellular Automata organic cave smoothing.
+- [x] **Flow Field Pathfinding**: Dijkstra integration cost fields and 2D vector gradient fields for instantaneous $O(1)$ mass-crowd multi-agent navigation.
 - [ ] **Jump Point Search (JPS)**: Order-of-magnitude acceleration on uniform-cost grids by skipping intermediate symmetry nodes.
 - [ ] **Hierarchical Pathfinding (HPA\*)**: Hierarchical abstraction clustering the grid into chunks for high-performance massive world routing.
 - [ ] **Dungeon Loops with Delaunay Triangulation & MST**: Replacing sequential L-corridors with Delaunay graph triangulation and Kruskal's algorithm to generate loops and secret passageways.
-- [ ] **Flow Field Pathfinding**: Dijkstra vector flow fields for simultaneous mass-crowd movement (thousands of units pathfinding to a shared goal).
 
 #### 4. `game-loop-fsm`
 - [x] Fixed-timestep accumulator loop with spiral-of-death clamp.
 - [x] Render interpolation blending factor ($\alpha$).
 - [x] Decoupled pub/sub `EventBus`.
 - [x] Hierarchical character state machine with lifecycle callbacks.
-- [ ] **State Machine Stack (Push/Pop Substates)**: Adding state stacking (e.g. pushing a `PauseMenuState` or `InventoryState` over the active gameplay state without destroying it).
+- [x] **State Machine Stack (Push/Pop Substates)**: State stacking (e.g. pushing a `PauseMenuState` or `InventoryState` over the active gameplay state and resuming seamlessly).
+- [x] **Behavior Tree Engine**: Hierarchical Selector/Sequence composite nodes with Blackboards and Inverter decorators for advanced NPC artificial intelligence.
 - [ ] **Fixed-Point Determinism Module**: Fixed-point integer math (`fixed32`) for 100% cross-architecture lockstep networking.
-- [ ] **Behavior Tree Engine**: Hierarchical Selector/Sequence composite nodes with Blackboards for advanced non-player character (NPC) artificial intelligence.
 - [ ] **Frame Budget Profiler**: Built-in microsecond instrumentation tracking CPU tick budget utilization and detecting physics frame drops.
 
 ---
