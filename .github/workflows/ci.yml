@@ -27,3 +27,19 @@ jobs:
 
       - name: Run Complete Test Suite (CTest)
         run: ctest --test-dir build -C Release --output-on-failure
+
+  sanitizers-and-analysis:
+    name: ASan / UBSan Memory & UB Verification (Ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure CMake with Sanitizers
+        run: cmake -B build-san -S . -DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZERS=ON
+
+      - name: Build with Sanitizers
+        run: cmake --build build-san
+
+      - name: Run Sanitized Test Suite (ASan + UBSan)
+        run: ctest --test-dir build-san --output-on-failure

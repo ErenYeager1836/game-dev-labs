@@ -32,9 +32,14 @@ public:
         double clamped_delta = std::min(frame_delta_time, max_frame_time_);
         accumulator_ += clamped_delta;
 
-        while (accumulator_ >= fixed_dt_) {
+        // Use epsilon threshold to protect against IEEE 754 precision inaccuracies
+        constexpr double kEpsilon = 1e-9;
+        while (accumulator_ + kEpsilon >= fixed_dt_) {
             fixed_update_fn(static_cast<float>(fixed_dt_));
             accumulator_ -= fixed_dt_;
+            if (accumulator_ < 0.0) {
+                accumulator_ = 0.0;
+            }
             total_ticks_++;
         }
     }
