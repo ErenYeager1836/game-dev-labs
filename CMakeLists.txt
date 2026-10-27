@@ -9,3 +9,4 @@ enable_testing()
 # Subprojects
 add_subdirectory(ecs)
 add_subdirectory(physics-2d)
+add_subdirectory(pathfinding-procgen)
