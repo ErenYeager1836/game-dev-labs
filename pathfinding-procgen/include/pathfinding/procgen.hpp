@@ -52,13 +52,17 @@ public:
                 if (left || right) return false; // Already split
 
                 bool split_h = (r() % 2 == 0);
-                if (area.width > area.height && area.width / area.height >= 1.25) split_h = false;
-                else if (area.height > area.width && area.height / area.width >= 1.25) split_h = true;
+                if (area.width > area.height && static_cast<float>(area.width) / static_cast<float>(area.height) >= 1.25f) split_h = false;
+                else if (area.height > area.width && static_cast<float>(area.height) / static_cast<float>(area.width) >= 1.25f) split_h = true;
 
                 int max_dim = split_h ? area.height : area.width;
                 if (max_dim < min_size * 2 + 2) return false;
 
-                std::uniform_int_distribution<int> dist(min_size + 1, max_dim - min_size - 1);
+                int min_split = min_size + 1;
+                int max_split = max_dim - min_size - 1;
+                if (min_split > max_split) return false;
+
+                std::uniform_int_distribution<int> dist(min_split, max_split);
                 int split_pos = dist(r);
 
                 if (split_h) {
@@ -77,10 +81,18 @@ public:
                     if (right) right->create_rooms(out_rooms, min_size, r);
                 } else {
                     // Leaf node: carve a room padded inside partition
-                    int rw = std::uniform_int_distribution<int>(min_size, std::max(min_size, area.width - 2))(r);
-                    int rh = std::uniform_int_distribution<int>(min_size, std::max(min_size, area.height - 2))(r);
-                    int rx = std::uniform_int_distribution<int>(area.x + 1, area.x + area.width - rw - 1)(r);
-                    int ry = std::uniform_int_distribution<int>(area.y + 1, area.y + area.height - rh - 1)(r);
+                    int max_w = std::max(min_size, area.width - 2);
+                    int max_h = std::max(min_size, area.height - 2);
+                    int rw = (min_size < max_w) ? std::uniform_int_distribution<int>(min_size, max_w)(r) : min_size;
+                    int rh = (min_size < max_h) ? std::uniform_int_distribution<int>(min_size, max_h)(r) : min_size;
+
+                    int min_x = area.x + 1;
+                    int max_x = std::max(min_x, area.x + area.width - rw - 1);
+                    int rx = (min_x < max_x) ? std::uniform_int_distribution<int>(min_x, max_x)(r) : min_x;
+
+                    int min_y = area.y + 1;
+                    int max_y = std::max(min_y, area.y + area.height - rh - 1);
+                    int ry = (min_y < max_y) ? std::uniform_int_distribution<int>(min_y, max_y)(r) : min_y;
 
                     room = Rect(rx, ry, rw, rh);
                     out_rooms.push_back(room);
@@ -104,10 +116,15 @@ public:
 
         root.create_rooms(rooms, min_room_size, rng);
 
-        // Carve all generated rooms
+        // Carve all generated rooms safely clamped to map boundaries
         for (const auto& r : rooms) {
-            for (int y = r.y; y < r.y + r.height; ++y) {
-                for (int x = r.x; x < r.x + r.width; ++x) {
+            int y_start = std::max(1, r.y);
+            int y_end = std::min(map.height() - 2, r.y + r.height - 1);
+            int x_start = std::max(1, r.x);
+            int x_end = std::min(map.width() - 2, r.x + r.width - 1);
+
+            for (int y = y_start; y <= y_end; ++y) {
+                for (int x = x_start; x <= x_end; ++x) {
                     map.set(x, y, TileType::Floor);
                 }
             }
@@ -117,6 +134,12 @@ public:
         for (size_t i = 0; i + 1 < rooms.size(); ++i) {
             Point p1 = rooms[i].center();
             Point p2 = rooms[i + 1].center();
+
+            // Clamp p1 and p2 to valid interior map bounds
+            p1.x = std::clamp(p1.x, 1, map.width() - 2);
+            p1.y = std::clamp(p1.y, 1, map.height() - 2);
+            p2.x = std::clamp(p2.x, 1, map.width() - 2);
+            p2.y = std::clamp(p2.y, 1, map.height() - 2);
 
             // Horizontal tunnel
             int x_start = std::min(p1.x, p2.x);

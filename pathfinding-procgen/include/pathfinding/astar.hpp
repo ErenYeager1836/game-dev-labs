@@ -95,9 +95,14 @@ public:
                 result.total_cost = g_cost[current_idx];
 
                 Point curr = goal;
-                while (curr != start) {
+                size_t safety_counter = 0;
+                while (curr != start && map.in_bounds(curr) && safety_counter++ < total_tiles) {
                     result.path.push_back(curr);
-                    curr = parent[map.to_index(curr)];
+                    size_t idx = map.to_index(curr);
+                    if (idx >= parent.size() || !map.in_bounds(parent[idx])) {
+                        break;
+                    }
+                    curr = parent[idx];
                 }
                 result.path.push_back(start);
                 std::reverse(result.path.begin(), result.path.end());
